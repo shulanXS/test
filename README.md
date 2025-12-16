@@ -6,6 +6,9 @@
 
 - 📚 文档向量化存储
 - 🔍 相似性搜索
+- ✏️ 文档更新和删除
+- 📋 文档查询和管理
+- 🗂️ 集合管理（创建、删除、清空、列表）
 - 🚀 快速检索
 - 💡 简单易用
 
@@ -67,13 +70,59 @@ python app.py --action search --query "机器学习" --top-k 3
 python app.py --host 192.168.1.100 --port 19530
 ```
 
+### CRUD操作
+
+```bash
+# 删除单个文档
+python app.py --action delete --doc-id 1
+
+# 批量删除文档
+python app.py --action delete --doc-ids "1,2,3"
+
+# 更新文档
+python app.py --action update --doc-id 1 --text "新的文档内容"
+
+# 查询单个文档
+python app.py --action get --doc-id 1
+
+# 查看集合统计信息
+python app.py --action stats
+```
+
+### 集合管理
+
+```bash
+# 列出所有集合
+python app.py --action list-collections
+
+# 删除集合
+python app.py --action drop-collection --collection-name "my_collection"
+
+# 清空集合（保留集合结构，删除所有数据）
+python app.py --action clear --collection-name "my_collection"
+```
+
 ### 命令行参数
 
 - `--host`: Milvus服务器地址（默认: localhost）
 - `--port`: Milvus服务器端口（默认: 19530）
-- `--action`: 执行的操作，可选值: `insert`, `search`, `both`（默认: both）
+- `--action`: 执行的操作，可选值:
+  - `insert`: 插入文档
+  - `search`: 搜索文档
+  - `both`: 插入并搜索（默认）
+  - `delete`: 删除文档
+  - `update`: 更新文档
+  - `get`: 查询单个文档
+  - `stats`: 显示统计信息
+  - `list-collections`: 列出所有集合
+  - `drop-collection`: 删除集合
+  - `clear`: 清空集合
 - `--query`: 搜索查询文本（默认: "什么是向量数据库？"）
 - `--top-k`: 返回最相似的k个结果（默认: 5）
+- `--doc-id`: 文档ID（用于delete、update、get操作）
+- `--doc-ids`: 文档ID列表，用逗号分隔（用于批量删除）
+- `--text`: 文档文本（用于update操作）
+- `--collection-name`: 集合名称
 
 ## 项目结构
 
@@ -117,6 +166,59 @@ for result in results:
     print(f"文档: {result['text']}")
 ```
 
+### 删除文档
+
+```python
+# 删除单个文档
+client.delete_document(doc_id=1)
+
+# 批量删除文档
+client.delete_documents(doc_ids=[1, 2, 3])
+```
+
+### 更新文档
+
+```python
+new_text = "更新后的文档内容"
+new_embedding = vectorizer.encode([new_text])[0]
+client.update_document(doc_id=1, text=new_text, embedding=new_embedding)
+```
+
+### 查询文档
+
+```python
+# 查询单个文档
+doc = client.get_document(doc_id=1)
+if doc:
+    print(f"ID: {doc['id']}")
+    print(f"文本: {doc['text']}")
+
+# 批量查询文档
+docs = client.query_by_ids(doc_ids=[1, 2, 3])
+```
+
+### 集合管理
+
+```python
+# 列出所有集合
+collections = client.list_collections()
+print(collections)
+
+# 删除集合
+client.delete_collection("my_collection")
+
+# 清空集合
+client.clear_collection("my_collection")
+
+# 获取集合统计信息
+stats = client.get_collection_stats()
+print(f"文档数量: {stats['num_entities']}")
+
+# 检查连接状态
+if client.is_connected():
+    print("已连接到Milvus")
+```
+
 ## 模型说明
 
 默认使用 `all-MiniLM-L6-v2` 模型：
@@ -146,13 +248,24 @@ A:
 2. 检查端口是否正确（默认19530）
 3. 确认防火墙设置
 
+## 已实现功能
+
+- ✅ 文档插入和向量化存储
+- ✅ 相似性搜索
+- ✅ 文档更新和删除（单个和批量）
+- ✅ 文档查询（单个和批量）
+- ✅ 集合管理（创建、删除、清空、列表）
+- ✅ 连接状态检查
+- ✅ 集合统计信息
+
 ## 下一步扩展
 
 - [ ] 支持批量文档导入（从文件）
 - [ ] 添加Web API接口
 - [ ] 支持更多向量化模型
-- [ ] 添加文档更新和删除功能
 - [ ] 性能优化和索引调优
+- [ ] 添加数据导出功能
+- [ ] 支持条件查询和过滤
 
 ## 许可证
 

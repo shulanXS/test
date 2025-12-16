@@ -169,4 +169,251 @@ class MilvusClient:
             "collection_name": self.collection_name,
             "num_entities": num_entities
         }
+    
+    def is_connected(self) -> bool:
+        """检查是否已连接到Milvus"""
+        try:
+            connections.get_connection_addr(self.connection_name)
+            return True
+        except:
+            return False
+    
+    def delete_document(self, doc_id: int) -> bool:
+        """
+        根据ID删除单个文档
+        
+        Args:
+            doc_id: 文档ID
+            
+        Returns:
+            是否删除成功
+        """
+        collection = self.get_collection()
+        try:
+            collection.delete(expr=f"id == {doc_id}")
+            collection.flush()
+            print(f"✓ 成功删除文档 ID: {doc_id}")
+            return True
+        except Exception as e:
+            print(f"✗ 删除文档失败: {e}")
+            return False
+    
+    def delete_documents(self, doc_ids: List[int]) -> int:
+        """
+        批量删除文档
+        
+        Args:
+            doc_ids: 文档ID列表
+            
+        Returns:
+            成功删除的文档数量
+        """
+        if not doc_ids:
+            return 0
+        
+        collection = self.get_collection()
+        try:
+            # 构建删除表达式
+            ids_str = ",".join([str(id) for id in doc_ids])
+            expr = f"id in [{ids_str}]"
+            
+            collection.delete(expr=expr)
+            collection.flush()
+            
+            deleted_count = len(doc_ids)
+            print(f"✓ 成功删除 {deleted_count} 条文档")
+            return deleted_count
+        except Exception as e:
+            print(f"✗ 批量删除文档失败: {e}")
+            return 0
+    
+    def update_document(self, doc_id: int, text: str, embedding: List[float]) -> bool:
+        """
+        更新文档内容
+        
+        注意：由于当前schema使用auto_id=True，更新操作会先删除原文档再插入新文档，
+        新文档会获得新的ID。如果需要保持ID不变，请修改schema使用auto_id=False。
+        
+        Args:
+            doc_id: 文档ID
+            text: 新的文档文本
+            embedding: 新的向量
+            
+        Returns:
+            是否更新成功
+        """
+        collection = self.get_collection()
+        try:
+            # 检查文档是否存在
+            existing_doc = self.get_document(doc_id)
+            if not existing_doc:
+                print(f"✗ 文档 ID: {doc_id} 不存在")
+                return False
+            
+            # Milvus的更新操作：先删除再插入
+            # 注意：由于auto_id=True，新插入的文档会有新的ID
+            collection.delete(expr=f"id == {doc_id}")
+            collection.flush()
+            
+            # 插入更新后的数据
+            entities = [
+                [text],
+                [embedding]
+            ]
+            collection.insert(entities)
+            collection.flush()
+            
+            print(f"✓ 成功更新文档（原ID: {doc_id}，新文档已插入）")
+            print("  注意：由于使用auto_id，新文档会有新的ID")
+            return True
+        except Exception as e:
+            print(f"✗ 更新文档失败: {e}")
+            return False
+    
+    def get_document(self, doc_id: int) -> Optional[dict]:
+        """
+        根据ID查询单个文档
+        
+        Args:
+            doc_id: 文档ID
+            
+        Returns:
+            文档信息字典，包含id、text、embedding，如果不存在则返回None
+        """
+        collection = self.get_collection()
+        collection.load()
+        
+        try:
+            # 使用query方法查询
+            results = collection.query(
+                expr=f"id == {doc_id}",
+                output_fields=["id", "text", "embedding"]
+            )
+            
+            if results:
+                return results[0]
+            else:
+                print(f"未找到文档 ID: {doc_id}")
+                return None
+        except Exception as e:
+            print(f"✗ 查询文档失败: {e}")
+            return None
+    
+    def list_collections(self) -> List[str]:
+        """
+        列出所有集合名称
+        
+        Returns:
+            集合名称列表
+        """
+        try:
+            collections = utility.list_collections()
+            return collections
+        except Exception as e:
+            print(f"✗ 列出集合失败: {e}")
+            return []
+    
+    def delete_collection(self, collection_name: Optional[str] = None) -> bool:
+        """
+        删除集合
+        
+        Args:
+            collection_name: 集合名称，默认使用self.collection_name
+            
+        Returns:
+            是否删除成功
+        """
+        name = collection_name or self.collection_name
+        
+        if not utility.has_collection(name):
+            print(f"集合 '{name}' 不存在")
+            return False
+        
+        try:
+            utility.drop_collection(name)
+            print(f"✓ 成功删除集合 '{name}'")
+            
+            # 如果删除的是当前集合，重置集合名称
+            if name == self.collection_name:
+                self.collection_name = "document_collection"
+            
+            return True
+        except Exception as e:
+            print(f"✗ 删除集合失败: {e}")
+            return False
+    
+    def clear_collection(self, collection_name: Optional[str] = None) -> bool:
+        """
+        清空集合中的所有数据（保留集合结构）
+        
+        Args:
+            collection_name: 集合名称，默认使用self.collection_name
+            
+        Returns:
+            是否清空成功
+        """
+        name = collection_name or self.collection_name
+        
+        if not utility.has_collection(name):
+            print(f"集合 '{name}' 不存在")
+            return False
+        
+        try:
+            collection = Collection(name)
+            collection.load()
+            
+            # 获取所有文档ID
+            results = collection.query(
+                expr="id >= 0",  # 查询所有文档
+                output_fields=["id"]
+            )
+            
+            if not results:
+                print(f"集合 '{name}' 已经是空的")
+                return True
+            
+            # 删除所有文档
+            doc_ids = [doc["id"] for doc in results]
+            ids_str = ",".join([str(id) for id in doc_ids])
+            expr = f"id in [{ids_str}]"
+            
+            collection.delete(expr=expr)
+            collection.flush()
+            
+            print(f"✓ 成功清空集合 '{name}'，删除了 {len(doc_ids)} 条文档")
+            return True
+        except Exception as e:
+            print(f"✗ 清空集合失败: {e}")
+            return False
+    
+    def query_by_ids(self, doc_ids: List[int]) -> List[dict]:
+        """
+        根据ID列表批量查询文档
+        
+        Args:
+            doc_ids: 文档ID列表
+            
+        Returns:
+            文档信息列表
+        """
+        if not doc_ids:
+            return []
+        
+        collection = self.get_collection()
+        collection.load()
+        
+        try:
+            # 构建查询表达式
+            ids_str = ",".join([str(id) for id in doc_ids])
+            expr = f"id in [{ids_str}]"
+            
+            results = collection.query(
+                expr=expr,
+                output_fields=["id", "text", "embedding"]
+            )
+            
+            return results
+        except Exception as e:
+            print(f"✗ 批量查询文档失败: {e}")
+            return []
 
