@@ -128,11 +128,21 @@ python app.py --action clear --collection-name "my_collection"
 
 ```
 .
-├── app.py              # 主应用脚本
-├── milvus_client.py    # Milvus客户端封装
-├── vectorizer.py       # 文本向量化模块
-├── requirements.txt    # Python依赖
-└── README.md          # 项目说明
+├── app.py                    # 入口脚本（转发到 milvus_mvp.cli）
+├── example.py                # 快速示例
+├── milvus_mvp/               # 包化后的核心代码
+│   ├── __init__.py
+│   ├── cli.py                # CLI 入口（argparse）
+│   ├── client.py             # Milvus 客户端封装（CRUD/集合/搜索）
+│   ├── config.py             # 配置（可用环境变量覆盖）
+│   ├── log.py                # 日志配置
+│   ├── vectorizer.py         # 文本向量化
+│   └── services/             # 业务层：组合向量化 + Milvus 操作
+│       ├── ingest.py         # 插入/更新/删除/查询
+│       ├── search.py         # 搜索
+│       └── __init__.py
+├── requirements.txt          # Python依赖
+└── README.md                 # 项目说明
 ```
 
 ## 代码示例
@@ -140,10 +150,10 @@ python app.py --action clear --collection-name "my_collection"
 ### 插入文档
 
 ```python
-from milvus_client import MilvusClient
-from vectorizer import TextVectorizer
+from milvus_mvp import MilvusClient, TextVectorizer, MilvusSettings
 
-client = MilvusClient()
+settings = MilvusSettings()
+client = MilvusClient(settings=settings)
 vectorizer = TextVectorizer()
 
 client.connect()

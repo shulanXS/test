@@ -1,9 +1,8 @@
 """
 快速示例脚本
-演示如何使用Milvus进行文档相似性搜索
+使用新的包结构 (milvus_mvp) 进行文档相似性搜索
 """
-from milvus_client import MilvusClient
-from vectorizer import TextVectorizer
+from milvus_mvp import MilvusClient, TextVectorizer, MilvusSettings
 
 
 def main():
@@ -12,7 +11,8 @@ def main():
     print("=" * 60)
     
     # 初始化
-    client = MilvusClient(host="localhost", port=19530)
+    settings = MilvusSettings(host="localhost", port=19530)
+    client = MilvusClient(settings=settings)
     vectorizer = TextVectorizer()
     
     try:
